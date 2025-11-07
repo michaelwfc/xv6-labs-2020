@@ -1,8 +1,8 @@
 struct buf;
 struct context;
 struct file;
-struct inode;
 struct pipe;
+struct inode;
 struct proc;
 struct spinlock;
 struct sleeplock;
@@ -185,3 +185,10 @@ void            virtio_disk_intr(void);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))
+
+
+// demo
+void demo1(void);
+void demo2(void);
+void demo3(void);
+void demo4(void);

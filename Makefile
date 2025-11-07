@@ -42,6 +42,12 @@ OBJS += \
 	$K/vmcopyin.o
 endif
 
+ifeq ($(LAB), traps)
+OBJS += \
+	$K/demos.o
+endif
+
+
 ifeq ($(LAB),$(filter $(LAB), pgtbl lock))
 OBJS += \
 	$K/stats.o\
@@ -159,6 +165,7 @@ mkfs/mkfs: mkfs/mkfs.c $K/fs.h $K/param.h
 .PRECIOUS: %.o
 
 UPROGS=\
+	$U/_demo\
 	$U/_cat\
 	$U/_echo\
 	$U/_forktest\

@@ -40,3 +40,9 @@ void free(void*);
 int atoi(const char*);
 int memcmp(const void *, const void *, uint);
 void *memcpy(void *, const void *, uint);
+
+// demos
+void demo1(void); 
+void demo2(void); 
+void demo3(void);
+void demo4(void);  

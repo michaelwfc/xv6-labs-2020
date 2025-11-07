@@ -95,3 +95,28 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+
+void sys_demo1(void)
+{
+  // int n;
+  // if(argint(0, &n) < 0)
+  //   return -1;
+  // return sum_to(n);
+  demo1();
+}
+
+void sys_demo2(void)
+{
+  demo2();
+}
+
+void sys_demo3(void)
+{
+  demo3();
+}
+
+void sys_demo4(void)
+{
+  demo4();
+}

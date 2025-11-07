@@ -1,0 +1,12 @@
+# debug for gdb-multiarch user/_sh
+# gdb-multiarch -x .gdbinit_user user/_sh 
+set confirm off
+set architecture riscv:rv64
+symbol-file user/_sh
+set disassemble-next-line auto
+set riscv use-compressed-breakpoints yes
+set disassemble-next-line on
+set print pretty on 
+set print array on
+
+target remote :26000

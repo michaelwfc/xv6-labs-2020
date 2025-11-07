@@ -1,0 +1,13 @@
+# debug for  kernel
+# gdb-multiarch -x .gdbinit_kernel  kernel/kernel 
+
+set confirm off
+set architecture riscv:rv64
+symbol-file kernel/kernel
+set disassemble-next-line auto
+set riscv use-compressed-breakpoints yes
+set disassemble-next-line on
+set print pretty on 
+set print array on
+
+target remote :26000

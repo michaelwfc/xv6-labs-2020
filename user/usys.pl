@@ -36,3 +36,9 @@ entry("getpid");
 entry("sbrk");
 entry("sleep");
 entry("uptime");
+
+
+entry("demo1"); # demo
+entry("demo2"); 
+entry("demo3");
+entry("demo4");
