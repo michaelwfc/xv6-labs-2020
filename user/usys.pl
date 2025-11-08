@@ -42,3 +42,4 @@ entry("demo1"); # demo
 entry("demo2"); 
 entry("demo3");
 entry("demo4");
+entry("demo6");

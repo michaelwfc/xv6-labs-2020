@@ -14,6 +14,7 @@ int main(int argc, char *argv[]) {
     else if(n==2)demo2();
     else if(n==3)demo3();
     else if(n==4)demo4();
+    else if(n==6)demo6();
     else{
         printf("Invalid demo number: %d\n",n);
     }    

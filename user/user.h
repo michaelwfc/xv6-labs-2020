@@ -45,4 +45,5 @@ void *memcpy(void *, const void *, uint);
 void demo1(void); 
 void demo2(void); 
 void demo3(void);
-void demo4(void);  
+void demo4(void); 
+void demo6(void);

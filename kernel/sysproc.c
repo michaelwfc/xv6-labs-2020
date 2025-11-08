@@ -120,3 +120,7 @@ void sys_demo4(void)
 {
   demo4();
 }
+
+void sys_demo6(void){
+  demo6();
+}

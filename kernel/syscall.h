@@ -26,3 +26,4 @@
 #define SYS_demo2   23
 #define SYS_demo3   24
 #define SYS_demo4   25
+#define SYS_demo6   26

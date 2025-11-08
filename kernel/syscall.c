@@ -109,6 +109,7 @@ extern uint64 sys_demo1(void); // demo
 extern uint64 sys_demo2(void);
 extern uint64 sys_demo3(void);
 extern uint64 sys_demo4(void);
+extern uint64 sys_demo6(void);
 
 static uint64 (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -136,6 +137,7 @@ static uint64 (*syscalls[])(void) = {
 [SYS_demo2]    sys_demo2,
 [SYS_demo3]    sys_demo3,
 [SYS_demo4]    sys_demo4,
+[SYS_demo6]    sys_demo6,
 };
 
 void

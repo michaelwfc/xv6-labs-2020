@@ -50,3 +50,17 @@ void demo4(void){
 }
 
 
+// void demo5(){
+//     int top = 50;
+//     int result = _dummy(top);
+// }
+
+void demo6(){
+    int sum =0;
+    for(int i=1; i<10 ; i++){
+        sum += 3*i;
+        printf("%d\n",sum_to(i));
+
+    }
+    printf("Sum: %d\n",sum);
+}
