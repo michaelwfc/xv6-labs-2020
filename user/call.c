@@ -12,6 +12,14 @@ int f(int x) {
 }
 
 void main(void) {
+
   printf("%d %d\n", f(8)+1, 13);
+
+  printf("Q5\n");
+  unsigned int i = 0x00646c72;
+	printf("H%x Wo%s", 57616, &i);
+  printf("\nQ6\n");
+  printf("x=%d y=%d\n", 3);
+
   exit(0);
 }

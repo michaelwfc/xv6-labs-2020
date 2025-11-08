@@ -1,12 +1,19 @@
-# debug for gdb-multiarch user/_sh
-# gdb-multiarch -x .gdbinit_user user/_sh 
+# gdbinit file for debugging user/_call
+# $ gdb-multiarch -x .gdbinit_user 
 set confirm off
 set architecture riscv:rv64
-symbol-file user/_sh
 set disassemble-next-line auto
 set riscv use-compressed-breakpoints yes
 set disassemble-next-line on
 set print pretty on 
 set print array on
 
+
+# If you want to debug the user program call, load its symbols so GDB knows where main() is:
+# Now GDB understands your user/call.c functions (main, f, g, etc.).
+symbol-file user/_call
+
+
 target remote :26000
+
+b user/call.c:main
