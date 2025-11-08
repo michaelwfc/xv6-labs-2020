@@ -193,3 +193,6 @@ void demo2(void);
 void demo3(void);
 void demo4(void);
 void demo6(void);
+
+// ================== lab4-traps-part2 ===================
+void backtrace(void);

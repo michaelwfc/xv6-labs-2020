@@ -121,6 +121,10 @@ panic(char *s)
   printf("panic: ");
   printf(s);
   printf("\n");
+
+  // ================== lab4-traps-part2 ===================
+  backtrace();
+
   panicked = 1; // freeze uart output from other CPUs
   for(;;)
     ;
@@ -131,4 +135,20 @@ printfinit(void)
 {
   initlock(&pr.lock, "pr");
   pr.locking = 1;
+}
+
+// ================== lab4-traps-part2 ===================
+void backtrace(void){
+  uint64 stack_top, current_fp_addr,return_addr, prev_fp_addr;
+  // get the current frame pointer
+  current_fp_addr  = r_fp();
+  stack_top = PGROUNDUP(current_fp_addr);
+  while (current_fp_addr< stack_top) {
+  // get the saved return address
+  return_addr = *(uint64*)(current_fp_addr-8);
+  // get previous frame pointer
+  prev_fp_addr = *(uint64*)(current_fp_addr -16);
+  current_fp_addr = prev_fp_addr;
+  printf("%p\n",return_addr);
+  }
 }
