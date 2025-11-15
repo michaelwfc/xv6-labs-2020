@@ -67,7 +67,21 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
-  } else {
+  // ====================== lab5-lazy-page-allocation ======================
+  // the page fault handler
+  // when a page fault occurs, we need to allocate a page and map it to the faulting address.
+  } else if (r_scause()==15) {
+    uint64 va = r_stval();
+    // printf("page fault at %p\n", va);
+    uint64 pa =  (uint64)kalloc();
+    memset((void *)pa, 0, PGSIZE);
+    va= PGROUNDDOWN(va);
+    if (mappages(p->pagetable, va, PGSIZE, pa, PTE_R | PTE_W | PTE_X | PTE_U) < 0) {
+      printf("mappages failed\n");
+      kfree((void *)pa);
+      p->killed = 1;
+    }
+  }else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
     p->killed = 1;
