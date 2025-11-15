@@ -59,7 +59,6 @@ sys_sleep(void)
   uint ticks0;
 
   backtrace();
-  
   if(argint(0, &n) < 0)
     return -1;
   acquire(&tickslock);
@@ -125,4 +124,36 @@ void sys_demo4(void)
 
 void sys_demo6(void){
   demo6();
+}
+
+
+// ==============lab4-traps-part3==============
+uint64 sys_sigalarm()
+{
+  int ticks;
+  uint64 handler;
+  // argint and argaddr are the usual xv6 helpers. 
+  // argaddr reads an argument interpreted as an address (user pointer / integer).
+  if(argint(0, &ticks)<0)
+    return -1;
+  if(argaddr(1, &handler)<0)
+    return -1;
+
+  struct proc *p = myproc();
+  if(ticks <=0){
+    p->alarm_interval = 0;
+    p->alarm_ticks = 0;
+    p->alarm_handler=0;
+    return 0;
+  }
+  p->alarm_interval = ticks;
+  p->alarm_ticks = ticks;
+  // p->alarm_handler = handler;
+  p->alarm_handler = (void (*)())handler;
+  return 0;
+}
+
+int sys_sigreturn(void)
+{
+  return 0; 
 }

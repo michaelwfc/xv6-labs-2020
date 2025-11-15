@@ -47,3 +47,14 @@ void demo2(void);
 void demo3(void);
 void demo4(void); 
 void demo6(void);
+
+// ==============lab4-traps-part3==============
+// declare the syscalls : Add these prototypes so user programs can call them.
+int sigalarm(int ticks, void (*handler)());
+int sigreturn(void);
+
+// void (*handler)()
+// “handler is a pointer to a function that returns void and takes no arguments.”
+// (*handler) — that * means “pointer to”.
+// handler → pointer to … something that returns void.
+// Then the trailing () means that this “something” can be called like a function — it takes (possibly unspecified) arguments.

@@ -194,7 +194,8 @@ endif
 ifeq ($(LAB),traps)
 UPROGS += \
 	$U/_call\
-	$U/_bttest
+	$U/_bttest\
+	$U/_alarmtest
 endif
 
 ifeq ($(LAB),lazy)
@@ -270,6 +271,11 @@ QEMUGDB = $(shell if $(QEMU) -help | grep -q '^-gdb'; \
 ifndef CPUS
 CPUS := 3
 endif
+
+ifeq ($(LAB),traps)
+CPUS := 1
+endif
+
 ifeq ($(LAB),fs)
 CPUS := 1
 endif

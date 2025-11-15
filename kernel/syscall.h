@@ -27,3 +27,7 @@
 #define SYS_demo3   24
 #define SYS_demo4   25
 #define SYS_demo6   26
+
+// ==============lab4-traps-part3==============
+#define SYS_sigalarm 27
+#define SYS_sigreturn 28

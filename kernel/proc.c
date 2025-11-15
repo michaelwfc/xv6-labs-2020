@@ -127,6 +127,11 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
+  // ==============lab4-traps-part3==============
+  p->alarm_interval = 0;
+  p->alarm_ticks = 0;
+  p->alarm_handler =0;
+
   return p;
 }
 
@@ -501,6 +506,41 @@ scheduler(void)
 // be proc->intena and proc->noff, but that would
 // break in the few places where a lock is held but
 // there's no process.
+
+/**
+You are inside sched(), which is called by a process that’s about to stop running — usually because it’s calling yield(), sleep(), or exit().
+At this point:
+- The current process p is no longer RUNNING — maybe it’s RUNNABLE, SLEEPING, or ZOMBIE.
+- The kernel now needs to switch to the CPU’s scheduler context, which will then pick the next process to run.
+
+This function does a context switch:
+- It saves the current process’s CPU context (registers, program counter, etc.) into p->context.
+- It restores the scheduler’s own saved context (mycpu()->context).
+- The result: the CPU starts executing the scheduler loop in scheduler() instead of user code.
+
+Later, the scheduler jumps back with swtch(), restoring p->context — and sched() simply returns as if nothing special happened.
+
+About intena and checks
+intena saves whether interrupts were enabled before switching out, so the scheduler can restore it correctly after returning.
+Those panic() checks ensure that sched() is only called when:
+  - p->lock is held,
+  - only one nested critical section (noff == 1),
+  - interrupts are off (so we’re atomic).
+
+- swtch() is a low-level assembly routine that saves CPU registers (PC, SP, callee-saved registers, etc.) from the current context (p->context)
+- Then it loads the saved registers from the target context (mycpu()->context) — which is the scheduler’s context for this CPU.
+At that instant, the CPU’s execution jumps to the scheduler’s saved program counter, and the process p is effectively paused.
+
+When the scheduler later decides to resume p, it will call:
+swtch(&mycpu()->context, &p->context);
+
+swtch(&p->context, &mycpu()->context);
+“Switch to scheduler” — what it really means
+After swtch(&p->context, &mycpu()->context): 
+- The CPU is now executing the scheduler code (the infinite loop inside scheduler() in proc.c).
+- That scheduler will look for another process that’s RUNNABLE, acquire its lock, and swtch() back into that process’s context.
+
+*/
 void
 sched(void)
 {
@@ -517,6 +557,7 @@ sched(void)
     panic("sched interruptible");
 
   intena = mycpu()->intena;
+
   swtch(&p->context, &mycpu()->context);
   mycpu()->intena = intena;
 }

@@ -45,6 +45,8 @@ test0()
   int i;
   printf("test0 start\n");
   count = 0;
+  // it’s passing two arguments to the kernel via the trapframe registers (on RISC-V: a0, a1, …).
+  printf("periodic = %p\n", periodic);
   sigalarm(2, periodic);
   for(i = 0; i < 1000*500000; i++){
     if((i % 1000000) == 0)
@@ -54,7 +56,7 @@ test0()
   }
   sigalarm(0, 0);
   if(count > 0){
-    printf("test0 passed\n");
+    printf("test0 passed. count: %d\n", count);
   } else {
     printf("\ntest0 failed: the kernel never called the alarm handler\n");
   }

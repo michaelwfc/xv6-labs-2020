@@ -10,6 +10,15 @@ set disassemble-next-line on
 set print pretty on 
 set print array on
 
+add-symbol-file user/_alarmtest
+
 target remote 127.0.0.1:26000
 
-b sleep
+b user/alarmtest.c:main
+b sys_sigalarm
+b kernel/trap.c:88
+b yield
+# b scheduler
+# b allocproc
+# b usertrap
+# b *0x3ffffff000

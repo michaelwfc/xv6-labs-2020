@@ -80,7 +80,21 @@ struct trapframe {
   /* 280 */ uint64 t6;
 };
 
+/**
+Each process in xv6 has a state, stored in p->state, which tells the scheduler what that process is currently doing (or waiting for).
+| State        | Meaning                                                                                                                                               |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **UNUSED**   | The process slot isn’t in use (available for `allocproc()` to make a new process).                                                                    |
+| **SLEEPING** | The process is waiting for some event (like I/O or a lock). It’s not eligible to run until the event happens.                                         |
+| **RUNNABLE** | The process is ready to run — it has all resources it needs, but it’s not currently executing on a CPU. It’s sitting in the scheduler’s “ready list.” |
+| **RUNNING**  | The process is actually executing on a CPU right now.                                                                                                 |
+| **ZOMBIE**   | The process has exited but hasn’t been `wait()`ed on by its parent yet.                                                                               |
+
+*/
 enum procstate { UNUSED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
+
+typedef void (*sighandler_t)();
+
 
 // Per-process state
 struct proc {
@@ -103,4 +117,9 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+
+  // ==============lab4-traps-part3==============
+  int alarm_interval; // configured interval in ticks (n)
+  int alarm_ticks;    // ticks left until next handler
+  sighandler_t alarm_handler; // user-space address of handler (0 = none)
 };

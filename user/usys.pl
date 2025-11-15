@@ -43,3 +43,7 @@ entry("demo2");
 entry("demo3");
 entry("demo4");
 entry("demo6");
+
+#==============lab4-traps-part3==============
+entry("sigalarm");
+entry("sigreturn");

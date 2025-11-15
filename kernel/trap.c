@@ -65,8 +65,63 @@ usertrap(void)
     intr_on();
 
     syscall();
-  } else if((which_dev = devintr()) != 0){
-    // ok
+  }else if((which_dev = devintr()) != 0){
+    // ==============lab4-traps-part3==============
+    /**
+    devintr() checks hardware interrupt pending bits and returns:
+    2 → a timer interrupt (from the local timer)
+    1 → some external device interrupt (e.g., UART, disk)
+    0 → not a device interrupt
+
+    when timer trap, That is: the clock ticked. we need to update the process's ticks
+    */
+    if(which_dev==2){
+      if(p->alarm_interval >0){
+        p->alarm_ticks --;
+        if(p->alarm_ticks<=0){
+          // Force the process to return to user-space at the handler.
+          // By changing the trapframe's epc, the next sret will resume at handler.
+          // p->trapframe->epc is where control will resume in user mode (the program counter saved on trap). 
+          // Overwriting it makes the kernel return into the user handler.
+          // For test0 we don’t restore the original epc after handler returns (that’s for later parts). So after the handler runs, 
+          // the process may crash — but the handler does print alarm! first.
+          p->trapframe ->epc = (uint64)p->alarm_handler;
+          // reset ticks
+          p->alarm_ticks = p->alarm_interval;
+        }
+      }
+    yield();}
+    // give up the CPU if this is a timer interrupt.
+    /**
+    - It marks the current process as runnable again:  p->state = RUNNABLE;
+    - Then it switches context to the scheduler via sched(), allowing another process to run.
+    - Later, the scheduler may choose to resume this same process or another one.
+
+    In effect:
+    On each timer interrupt, the currently running user process voluntarily gives up the CPU so the scheduler can run another process. 
+    This is how preemptive multitasking is implemented in xv6.
+
+    Why we need it
+    Without this yield() on timer interrupts, a user process running in a tight loop (say, while(1);) would never release the CPU. 
+    No other process could run until it made a blocking system call. The system would effectively be single-tasking.
+
+
+    With the timer interrupt → yield() path: “You’ve had your turn, user process. Let someone else run for a bit.”
+    - Every few ticks, the clock interrupt forces a context switch.
+    - The kernel regains control, runs the scheduler, and shares CPU time fairly.
+
+
+    Process p:          CPU scheduler:
+    -------------       --------------------
+    yield()
+      -> sched()
+          swtch(&p->context, &cpu->context)
+                          -----> resumes scheduler()
+                                  picks next RUNNABLE q
+                                  swtch(&cpu->context, &q->context)
+                                                  -----> resumes process q
+    */
+        
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
@@ -76,9 +131,7 @@ usertrap(void)
   if(p->killed)
     exit(-1);
 
-  // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2)
-    yield();
+
 
   usertrapret();
 }

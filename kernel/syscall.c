@@ -111,6 +111,10 @@ extern uint64 sys_demo3(void);
 extern uint64 sys_demo4(void);
 extern uint64 sys_demo6(void);
 
+// ==============lab4-traps-part3==============
+extern uint64 sys_sigalarm(void);
+extern uint64 sys_sigreturn(void);
+
 static uint64 (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
 [SYS_exit]    sys_exit,
@@ -138,6 +142,11 @@ static uint64 (*syscalls[])(void) = {
 [SYS_demo3]    sys_demo3,
 [SYS_demo4]    sys_demo4,
 [SYS_demo6]    sys_demo6,
+
+// ==============lab4-traps-part3==============
+[SYS_sigalarm]  sys_sigalarm,
+[SYS_sigreturn]  sys_sigreturn,
+
 };
 
 void
