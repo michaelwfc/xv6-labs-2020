@@ -34,6 +34,7 @@ periodic()
 {
   count = count + 1;
   printf("alarm!\n");
+  // 在用户态的 alarm handler中调用 sigreturn() 时，才会进入 sys_sigreturn
   sigreturn();
 }
 
