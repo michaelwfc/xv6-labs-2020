@@ -136,6 +136,8 @@ found:
 static void
 freeproc(struct proc *p)
 {
+  // printf("freeproc\n");
+  // vmprint(p-> pagetable);
   if(p->trapframe)
     kfree((void*)p->trapframe);
   p->trapframe = 0;
@@ -251,6 +253,64 @@ growproc(int n)
   }
   p->sz = sz;
   return 0;
+}
+
+/**
+lazy version of growproc
+1. if n >0, just add page size for process, but not allocate
+2. if n < 0, free page size for process and unmap
+*/
+int lazy_growproc(int n) {
+  uint64 oldsz, newsz;
+  struct proc *p = myproc();
+
+  oldsz = p->sz;
+  newsz = oldsz + n;
+
+  if (n > 0) {
+    // just add page size for process, but not allocate
+    p->sz += n;
+    return 0;
+  } else if (n < 0) {
+    if (newsz < 0)
+      return -1;
+    uint64 a;
+    // loop from newsz to oldsz
+    // printf("lazy_growproc: shrink n %d, loop from newsz %p to oldsz %p\n", n, newsz, oldsz);
+    for (a = PGROUNDUP(newsz); a < PGROUNDUP(oldsz); a += PGSIZE) {
+      pte_t *pte = walk(p->pagetable, a, 0);
+    
+      // if (pte == 0) {
+      //   printf("DEBUG: walk returned NULL for va 0x%p in func XYZ, pid=%d\n", a, myproc()->pid);
+      // } else {
+      //   printf("DEBUG: pte for va 0x%p: 0x%p\n", a, *pte);
+      // }
+      
+      // If a page was never mapped (pte==0) → skip it.
+      if (pte == 0) {
+          // pte=0 means page not mapped when shrinking
+          // printf("lazy_growproc: no pte for va %p, ignoring\n", a);
+          continue;  
+      }
+
+      // If a page is mapped (pte exists + PTE_V) → free + unmap it.
+      if (*pte & PTE_V) {
+        // for the valid page, we need to free it
+        uint64 pa = PTE2PA(*pte);
+        kfree((void *)pa);
+      }
+
+      // unmap the page
+      if (pte)
+        *pte = 0;
+    }
+    p->sz = newsz;
+    // printf("finished lazy_growproc shrinking\n");
+    return 0;
+
+  } else {
+    return 0;
+  }
 }
 
 // Create a new process, copying the parent.
@@ -467,6 +527,12 @@ scheduler(void)
     int nproc = 0;
     for(p = proc; p < &proc[NPROC]; p++) {
       acquire(&p->lock);
+      
+      // print the killed but not exited process
+      // if(p->killed && p->state != ZOMBIE)
+      //   printf("stuck: pid %d killed but not exiting\n", p->pid);
+
+
       if(p->state != UNUSED) {
         nproc++;
       }

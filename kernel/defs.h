@@ -86,6 +86,9 @@ int             cpuid(void);
 void            exit(int);
 int             fork(void);
 int             growproc(int);
+// ============================ lab5-lazy-page-allocation ===============
+int lazy_growproc(int);
+
 pagetable_t     proc_pagetable(struct proc *);
 void            proc_freepagetable(pagetable_t, uint64);
 int             kill(int);
@@ -171,6 +174,8 @@ uint64          walkaddr(pagetable_t, uint64);
 int             copyout(pagetable_t, uint64, char *, uint64);
 int             copyin(pagetable_t, char *, uint64, uint64);
 int             copyinstr(pagetable_t, char *, uint64, uint64);
+pte_t *         walk(pagetable_t , uint64 , int);
+void            vmprint(pagetable_t);
 
 // plic.c
 void            plicinit(void);
@@ -185,3 +190,4 @@ void            virtio_disk_intr(void);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))
+

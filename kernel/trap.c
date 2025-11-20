@@ -70,21 +70,48 @@ usertrap(void)
   // ====================== lab5-lazy-page-allocation ======================
   // the page fault handler
   // when a page fault occurs, we need to allocate a page and map it to the faulting address.
-  } else if (r_scause()==15) {
-    uint64 va = r_stval();
-    // printf("page fault at %p\n", va);
-    uint64 pa =  (uint64)kalloc();
-    memset((void *)pa, 0, PGSIZE);
-    va= PGROUNDDOWN(va);
-    if (mappages(p->pagetable, va, PGSIZE, pa, PTE_R | PTE_W | PTE_X | PTE_U) < 0) {
-      printf("mappages failed\n");
-      kfree((void *)pa);
+  // r_scause(): 
+  // scause = 12 → Load page fault
+  // load page fault  = 13(0x000000000000000d)  or  store/AMO page fault = 15(0x000000000000000f) 
+  } else if (r_scause()==13 || r_scause()==15) {
+    uint64 fault_va = r_stval();
+
+    uint64 va= PGROUNDDOWN(fault_va);
+    struct proc *p = myproc();
+
+    // Check bounds: must be within process' allocated size
+    if(va >=p->sz || va >= MAXVA || va< p->trapframe->sp){
+      // page-faults on a virtual memory address higher than any allocated with sbrk()
+      // or lower than the stack. In xv6, heap is higher than stack
+      // printf("usertrap: page fault with scause %d at va 0x%p outside p->sz 0x%p, pid=%d\n", r_scause(), fault_va, p->sz, p->pid);
       p->killed = 1;
+      goto out_usertrap;
     }
+
+    // if(p->killed)
+      // goto out_usertrap;
+
+    char * mem =  kalloc();
+
+    if (mem == 0) {
+      // printf("usertrap: page fault with scause %d kalloc failed , pid=%d\n", r_scause(), p->pid);
+      p->killed = 1;
+      goto out_usertrap;
+    }else{
+      memset((void *)mem, 0, PGSIZE);
+      if (mappages(p->pagetable, va, PGSIZE, (uint64)mem, PTE_R | PTE_W |  PTE_U) < 0) {
+        printf("mappages failed\n");
+        kfree((void *)mem);
+        p->killed = 1;
+        goto out_usertrap;
+      }
+  }
+
   }else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
     p->killed = 1;
+    goto out_usertrap;
   }
 
   if(p->killed)
@@ -95,7 +122,13 @@ usertrap(void)
     yield();
 
   usertrapret();
+
+out_usertrap:
+  // printf("proc %d: marked killed and exit in %s\n", p->pid, __func__);
+  exit(-1);
 }
+
+
 
 //
 // return to user space

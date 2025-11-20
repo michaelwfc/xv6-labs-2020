@@ -5,6 +5,8 @@
 #include "riscv.h"
 #include "defs.h"
 #include "fs.h"
+#include "spinlock.h"
+#include "proc.h"
 
 /*
  * the kernel's page table.
@@ -101,12 +103,25 @@ walkaddr(pagetable_t pagetable, uint64 va)
     return 0;
 
   pte = walk(pagetable, va, 0);
-  if(pte == 0)
-    return 0;
-  if((*pte & PTE_V) == 0)
-    return 0;
-  if((*pte & PTE_U) == 0)
-    return 0;
+  // if(pte == 0)
+  //   return 0;
+  // if((*pte & PTE_V) == 0)
+  //   return 0;
+
+  struct proc *p = myproc();
+  if(pte==0|| (*pte & PTE_V)==0){
+    if(va>=p->sz || va < p->trapframe->sp){
+      return 0;
+    }
+    uint64 ka =(uint64)kalloc();
+    if(ka==0) return 0;
+    if(mappages(pagetable, PGROUNDDOWN(va), PGSIZE, ka, PTE_W|PTE_R|PTE_X|PTE_U)!=0){
+      kfree((void *)ka);
+      return 0;
+    }
+    
+  }
+
   pa = PTE2PA(*pte);
   return pa;
 }
@@ -181,12 +196,13 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
 
   for(a = va; a < va + npages*PGSIZE; a += PGSIZE){
     if((pte = walk(pagetable, a, 0)) == 0)
-      panic("uvmunmap: walk");
+      // panic("uvmunmap: walk");
+      continue;
     if((*pte & PTE_V) == 0)
       // panic("uvmunmap: not mapped");
       continue;
-    if(PTE_FLAGS(*pte) == PTE_V)
-      panic("uvmunmap: not a leaf");
+    // if(PTE_FLAGS(*pte) == PTE_V)
+    //   panic("uvmunmap: not a leaf");
     if(do_free){
       uint64 pa = PTE2PA(*pte);
       kfree((void*)pa);
@@ -316,9 +332,12 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
 
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
-      panic("uvmcopy: pte should exist");
+      // panic("uvmcopy: pte should exist");
+      continue;
     if((*pte & PTE_V) == 0)
-      panic("uvmcopy: page not present");
+      // panic("uvmcopy: page not present");
+      continue;
+    // parent has real page: copy as before
     pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte);
     if((mem = kalloc()) == 0)
@@ -349,6 +368,35 @@ uvmclear(pagetable_t pagetable, uint64 va)
   *pte &= ~PTE_U;
 }
 
+
+// helper: ensure a user page for va is present, allocate if needed.
+// returns 0 on success, -1 on failure (killed or OOM)
+int
+ensure_user_page(pagetable_t pagetable, uint64 va)
+{   
+
+    // va is page-aligned (caller should PGROUNDDOWN)
+    pte_t *pte = walk(pagetable, va, 0);
+    if (pte && (*pte & PTE_V))
+        return 0;   // already mapped
+
+    // allocate kernel page
+    char *mem = kalloc();
+    if (mem == 0) {
+        // OOM — caller should kill process or return error
+        return -1;
+    }
+    memset(mem, 0, PGSIZE);
+    // uint64 pa = (uint64)PADDR((uint64)mem);  // convert KVA -> PA (macro in your tree)
+    if (mappages(pagetable, va, PGSIZE, (uint64)mem, PTE_U | PTE_R | PTE_W) != 0) {
+        kfree(mem);
+        return -1;
+    }
+    return 0;
+}
+
+
+
 // Copy from kernel to user.
 // Copy len bytes from src to virtual address dstva in a given page table.
 // Return 0 on success, -1 on error.
@@ -357,11 +405,32 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 {
   uint64 n, va0, pa0;
 
+  // struct proc *p = myproc();
+
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
     pa0 = walkaddr(pagetable, va0);
     if(pa0 == 0)
       return -1;
+    // if(pa0==0){
+    //    //  allow for lazy allocation
+    //   if(va0 >=p->sz || va0<p->trapframe->sp){
+    //     return -1;
+    //   }
+    //   pa0 = (uint64)kalloc();
+    //   if(pa0==0){
+    //     p->killed =1;
+    //   }else{
+    //     memset((void *)pa0, 0, PGSIZE);
+    //     va0 = PGROUNDDOWN(va0);
+    //     if(mappages(p->pagetable, va0, PGSIZE, pa0, PTE_W|PTE_R|PTE_U) != 0){
+    //       kfree((void *)pa0);
+    //       p->killed =1;
+    //     }
+    //   }
+    // }
+    
+
     n = PGSIZE - (dstva - va0);
     if(n > len)
       n = len;
@@ -382,11 +451,37 @@ copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 {
   uint64 n, va0, pa0;
 
+  
   while(len > 0){
     va0 = PGROUNDDOWN(srcva);
     pa0 = walkaddr(pagetable, va0);
     if(pa0 == 0)
       return -1;
+
+    // allow for lazy allocation
+    // struct proc *p = myproc();
+    // if(pa0==0){
+    //   if(va0 >=p->sz || va0<p->trapframe->sp){
+    //     return -1;
+    //   }
+
+    //   pa0 = (uint64)kalloc();
+    //   if(pa0==0){
+    //     p->killed =1;
+    //   }else{
+    //     memset((void *)pa0, 0, PGSIZE);
+    //     va0 = PGROUNDDOWN(va0);
+    //     if(mappages(p->pagetable, va0, PGSIZE, pa0, PTE_W|PTE_R|PTE_U) != 0){
+    //       kfree((void *)pa0);
+    //       p->killed =1;
+          
+    //     }
+    //   }
+
+    //   if(p->killed){
+    //     printf("proc %d: marked killed in %s\n", p->pid, __func__);
+    //   }
+    // }
     n = PGSIZE - (srcva - va0);
     if(n > len)
       n = len;
@@ -440,4 +535,36 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   } else {
     return -1;
   }
+}
+
+
+
+void vmprint_level(pagetable_t pagetable, uint64 level){
+  for(int i=0;i<512;i++){
+    pte_t pte = pagetable[i];
+    // only print the valid ptes
+    if(pte & PTE_V){
+      uint64 child = PTE2PA(pte);
+      for(int j=0;j<level;j++){
+        if(j>0){
+          printf(" ");
+        }
+        printf("..");}
+      printf("%d: pte %p pa %p\n", i, pte, child);
+      // printf("%d: pte %p pa %p flag %p\n", i, pte, child, pte&0x3ff);
+
+      // check if this PTE points to another page table
+      if((pte & (PTE_R|PTE_W|PTE_X))==0)
+        // not a leaf → recurse
+        vmprint_level((pagetable_t)child, level+1);
+  }
+}
+}
+
+/** xv6-labs-2020 lab3:Print a page table (easy)
+ * print that pagetable in the format described below.
+ */
+void vmprint(pagetable_t pagetable){
+  printf("page table %p\n", pagetable);
+  vmprint_level(pagetable, 1);
 }
