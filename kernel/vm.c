@@ -5,6 +5,7 @@
 #include "riscv.h"
 #include "defs.h"
 #include "fs.h"
+#include "riscv.h"
 
 /*
  * the kernel's page table.
@@ -22,6 +23,7 @@ void
 kvminit()
 {
   kernel_pagetable = (pagetable_t) kalloc();
+  printf("kvminit kernel_pagetable: %p\n", kernel_pagetable);
   memset(kernel_pagetable, 0, PGSIZE);
 
   // uart registers
@@ -310,29 +312,57 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
 {
   pte_t *pte;
   uint64 pa, i;
-  uint flags;
-  char *mem;
+  uint flags, new_flags;
+  // char *mem;
 
   for(i = 0; i < sz; i += PGSIZE){
+    // parent must have a PTE for this va
     if((pte = walk(old, i, 0)) == 0)
       panic("uvmcopy: pte should exist");
     if((*pte & PTE_V) == 0)
       panic("uvmcopy: page not present");
+
     pa = PTE2PA(*pte);
+    // 
     flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
-      goto err;
-    memmove(mem, (char*)pa, PGSIZE);
-    if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
-      kfree(mem);
-      goto err;
+
+    // if((mem = kalloc()) == 0)
+    //   goto err;
+    // memmove(mem, (char*)pa, PGSIZE);
+    // if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
+    //   kfree(mem);
+    //   goto err;
+    // }
+
+    // 1. clear the write bit for both parent and child process
+    // set COW marker in PTE's software bits.
+    new_flags = (flags & ~PTE_W) | PTE_COW;
+
+    // 2. map the same physical page into child process pagetable
+    if(mappages(new, i, PGSIZE, pa, new_flags) != 0){
+      // on failure, unmap what we already mapped in 'new' and return -1.
+      // uvmunmap(pagetable, va, npages, do_free)
+      // do_free should be 0 because pages are shared (we did not allocate new ones).
+      printf("uvmunmap map the same physical page into child process pagetable: pa=%p,new_flags=%p\n", 
+        pa,new_flags);
+      uvmunmap(new, 0, i/PGSIZE, 0);
+      return -1;
     }
+
+
+    // 3. update parent's pagetable PTE to be read-only as well(clear PTE_W)
+    //    This makes parent also get a page fault if it writes -> COW handler.
+    *pte = PA2PTE(pa) | new_flags;
+
+    // 4. increment physical page ref count because parent + child share the page.
+    page_ref_inc(pa);
   }
+
   return 0;
 
- err:
-  uvmunmap(new, 0, i / PGSIZE, 1);
-  return -1;
+//  err:
+//   uvmunmap(new, 0, i / PGSIZE, 1);
+//   return -1;
 }
 
 // mark a PTE invalid for user access.
@@ -361,6 +391,31 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
     pa0 = walkaddr(pagetable, va0);
     if(pa0 == 0)
       return -1;
+
+    // BUG: If the page is COW, pa0 is read-only!
+    // Writing to it will fail or cause issues
+    
+    // FIX: Check if page is COW and handle it
+    pte_t *pte = walk(pagetable,va0,0);
+    if(pte==0)
+      return -1;
+    // Check if COW page (read-only but has PTE_COW flag)
+    if((*pte & PTE_V) && !(*pte & PTE_W) && (*pte & PTE_COW)){
+      // Need to allocate a new page before writing
+      char *mem = kalloc();
+      if(mem ==0)
+        return -1;
+      memmove(mem, (char*)pa0, PGSIZE);
+      // deincrement reference count
+      page_ref_dec(pa0);
+
+      // update PTE to point to new page
+      *pte = PA2PTE(mem) | PTE_FLAGS(*pte) | PTE_W;
+      *pte &= ~PTE_COW;
+      pa0= (uint64)mem;
+    }
+
+
     n = PGSIZE - (dstva - va0);
     if(n > len)
       n = len;

@@ -63,6 +63,22 @@ void            ramdiskrw(struct buf*);
 void*           kalloc(void);
 void            kfree(void *);
 void            kinit(void);
+void            page_ref_init(void);
+
+
+
+int             page_ref_get(uint64); 
+// void            page_ref_inc(uint64);
+// void            page_ref_dec(uint64);
+
+// macro for automatic source info
+void page_ref_inc_debug(uint64 , const char *);
+void page_ref_dec_debug(uint64 , const char* );
+#define page_ref_inc(pa) page_ref_inc_debug(pa, __FUNCTION__)
+#define page_ref_dec(pa) page_ref_dec_debug(pa, __FUNCTION__)
+
+
+
 
 // log.c
 void            initlog(int, struct superblock*);
@@ -171,6 +187,7 @@ uint64          walkaddr(pagetable_t, uint64);
 int             copyout(pagetable_t, uint64, char *, uint64);
 int             copyin(pagetable_t, char *, uint64, uint64);
 int             copyinstr(pagetable_t, char *, uint64, uint64);
+pte_t *         walk(pagetable_t , uint64 , int );
 
 // plic.c
 void            plicinit(void);

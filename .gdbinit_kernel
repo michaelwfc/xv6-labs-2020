@@ -10,7 +10,12 @@ set disassemble-next-line on
 set print pretty on 
 set print array on
 
+target remote 127.0.0.1:26000
+
 # debug for echo in user space
 # add-symbol-file user/_sh
 # b allocproc
 # b scheduler
+# b kinit
+# b kvminit
+b kernel/trap.c:99

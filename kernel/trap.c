@@ -67,9 +67,77 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
-  } else {
+ }
+  // handle store page fault for COW fork
+  // store/AMO page fault = 15(0x000000000000000f) 
+   else if(r_scause()==15){
+    
+    uint64 fault_va = r_stval();
+    pte_t *pte = walk(p->pagetable, fault_va, 0);
+    if (pte == 0|| (*pte & PTE_V) == 0)
+      panic("COW fault: pte is NULL");
+
+    if ( (*pte & PTE_COW) && ((*pte & PTE_W) == 0)){ 
+      uint64 pa = PTE2PA(*pte);
+
+      // page ref count ==1,
+      // because it is the only one using this page,we just clear the COW flag and set WRITE flag
+      if(page_ref_get(pa)==1){
+        *pte = PA2PTE(pa) | ((PTE_FLAGS(*pte) | PTE_W) & ~PTE_COW);
+        sfence_vma();
+        // return;
+      }
+      else{
+      // if page ref count >1, we need to make a copy of the page
+      char *mem = kalloc();
+      if(mem==0){
+        p->killed = 1;
+        printf("mem=0 , kill proc %d (%s): usertrap scause=0x%p sepc=0x%p stval=0x%p\n",
+        p->pid, p->name, r_scause(), r_sepc(), r_stval());
+        exit(-1);
+      }
+      // copy contents from old page to new page
+      // printf("COW page-fault handler: copy contents from old page to new page, mem=%p,pa=%p\n",mem, pa);
+      memmove(mem, (char *)pa, PGSIZE);
+      // decrement old page refcount (page_ref_dec(oldpa)) only once
+      page_ref_dec(pa);
+      // install new physical page in pte with write permission
+      *pte = PA2PTE(mem) | ((PTE_FLAGS(*pte) | PTE_W) & ~PTE_COW);
+      sfence_vma();
+    }
+
+    }else{
+      p->killed = 1;
+      printf("kill proc %d (%s): usertrap scause=0x%p sepc=0x%p stval=0x%p\n",
+          p->pid, p->name, r_scause(), r_sepc(), r_stval());
+      exit(-1);
+    }
+
+  }
+  else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+
+
+    // diagnostic: print PTE for faulting VA (insert where you print unexpected scause)
+    uint64 va = r_stval();   // faulting virtual address
+    pte_t *pte = walk(myproc()->pagetable, PGROUNDDOWN(va), 0);
+    printf("diagnose: fault va 0x%p\n", va);
+    if(pte == 0){
+      printf("  walk returned NULL pte\n");
+    } else {
+      uint64 ptev = *pte;
+      printf("  pte = 0x%p\n", ptev);
+      printf("  PTE_V:%d PTE_R:%d PTE_W:%d PTE_X:%d PTE_U:%d PTE_COW(software):0x%p\n",
+        (ptev & PTE_V) != 0,
+        (ptev & PTE_R) != 0,
+        (ptev & PTE_W) != 0,
+        (ptev & PTE_X) != 0,
+        (ptev & PTE_U) != 0,
+        (ptev & PTE_COW) != 0
+      );
+      printf("  PPN/PA = 0x%p\n", PTE2PA(ptev));
+  }
     p->killed = 1;
   }
 
