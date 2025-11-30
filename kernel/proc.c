@@ -502,6 +502,7 @@ void
 sched(void)
 {
   int intena;
+  struct cpu *c = mycpu();
   struct proc *p = myproc();
 
   if(!holding(&p->lock))
@@ -513,8 +514,8 @@ sched(void)
   if(intr_get())
     panic("sched interruptible");
 
-  intena = mycpu()->intena;
-  swtch(&p->context, &mycpu()->context);
+  intena = c->intena;
+  swtch(&p->context, &c->context);
   mycpu()->intena = intena;
 }
 
