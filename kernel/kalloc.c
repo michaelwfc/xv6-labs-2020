@@ -47,12 +47,12 @@ pa_to_idx(uint64 pa)
 //   return (char*)(pa + KERNBASE);
 // }
 
-void page_ref_init(void){
-  // initlock(&page_ref_lock, "page_ref")
-  acquire(&page_ref_lock);
-  memset(page_ref, 0, sizeof(page_ref));
-  release(&page_ref_lock);
-}
+// void page_ref_init(void){
+//   // initlock(&page_ref_lock, "page_ref")
+//   acquire(&page_ref_lock);
+//   memset(page_ref, 0, sizeof(page_ref));
+//   release(&page_ref_lock);
+// }
 
 
 int page_ref_get(uint64 pa){ 
@@ -160,13 +160,16 @@ void page_ref_dec_debug(uint64 pa, const char *why) {
     printf("Last change: %s\n", page_ref_trace[idx]);
     panic("page_ref_dec: refcount <= 0");
   }
-
+  
+  //  when freerange in kinit(), page_ref[idx] first initalied ==0, and then kfree ->page_ref_dec(), 
+  // we need free these page
   if(page_ref[idx] ==0){
     kfree_inner((void *)pa);
     release(&page_ref_lock);
     return;
   }
 
+  
   page_ref[idx] -= 1;
   page_ref_trace[idx] = why;
   // printf("DEC pa=0x%p idx=%d -> ref=%d (%s)\n", pa, idx, page_ref[idx], why);
@@ -184,8 +187,6 @@ void page_ref_dec_debug(uint64 pa, const char *why) {
 
 
 
-
-
 void
 kinit()
 {
@@ -200,7 +201,12 @@ freerange(void *pa_start, void *pa_end)
   char *p;
   p = (char*)PGROUNDUP((uint64)pa_start);
   for(; p + PGSIZE <= (char*)pa_end; p += PGSIZE)
+  { 
+    // initial ref count is 1
+    // page_ref_inc_debug((uint64)p, "freerange");
+    page_ref[(uint64) p/PGSIZE] =0;
     kfree(p);
+  }
 }
 
 // Free the page of physical memory pointed at by v,

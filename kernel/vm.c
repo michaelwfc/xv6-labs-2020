@@ -388,18 +388,17 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
-    pa0 = walkaddr(pagetable, va0);
-    if(pa0 == 0)
-      return -1;
 
     // BUG: If the page is COW, pa0 is read-only!
     // Writing to it will fail or cause issues
     
     // FIX: Check if page is COW and handle it
-    pte_t *pte = walk(pagetable,va0,0);
-    if(pte==0)
-      return -1;
     // Check if COW page (read-only but has PTE_COW flag)
+
+    pa0 = walkaddr(pagetable, va0);
+    if(pa0 == 0)
+      return -1;
+    pte_t *pte = walk(pagetable,va0,0);
     if((*pte & PTE_V) && !(*pte & PTE_W) && (*pte & PTE_COW)){
       // Need to allocate a new page before writing
       char *mem = kalloc();
@@ -414,6 +413,21 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
       *pte &= ~PTE_COW;
       pa0= (uint64)mem;
     }
+ 
+    // if(pte==0 || (*pte &PTE_V) == 0|| ((*pte &PTE_U) ==0)){
+    //   printf("copyout error: invalid address");
+    //   return -1;
+    // }
+      
+    // if((*pte& PTE_W) && (*pte &PTE_COW)){
+    //   if(cowfault(pagetable,va0)<0){
+    //     printf("copyout error: cowfault");
+    //     return -1;
+    //   }
+    // }
+    
+    // pa0 = PTE2PA(*pte);
+
 
 
     n = PGSIZE - (dstva - va0);
