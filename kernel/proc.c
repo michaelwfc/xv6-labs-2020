@@ -585,6 +585,24 @@ sleep(void *chan, struct spinlock *lk)
   }
 }
 
+
+void broken_sleep(void* chan){
+  struct proc *p = myproc();
+
+  // must acquire p->lock in order to change p->state.
+  // and then call sched
+  acquire(&p->lock);
+
+  p->state =  SLEEPING;
+  p->chan = chan;
+  sched();
+
+  //tidy up
+  p->chan = 0;
+  release(&p->lock);
+}
+
+
 // Wake up all processes sleeping on chan.
 // Must be called without any p->lock.
 void

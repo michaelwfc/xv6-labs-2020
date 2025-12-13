@@ -192,3 +192,53 @@ uartintr(void)
   uartstart();
   release(&uart_tx_lock);
 }
+
+
+
+static int tx_done; // has the UART finished sending?
+static int tx_chan; // &tx_chan is the "wait channel"
+
+// for lec 13 sleep & wakeup
+void
+uartwrite(char buf[], int n)
+{ 
+  acquire(&uart_tx_lock);
+  int i=0;
+  printf("uartwrite with broken_sleep");
+  while(i<n){
+    while(tx_done == 0){
+      // UART is busy sending a character. wait for it to interrupt
+      sleep(&tx_chan, &uart_tx_lock);
+
+      // release(&uart_tx_lock);
+      // broken_sleep(&tx_chan);
+      // acquire(&uart_tx_lock);
+    }
+    WriteReg(THR, buf[i]);
+    i += 1;
+    tx_done = 0;
+  }
+  release(&uart_tx_lock);
+}
+
+
+// void
+// uartintr(void)
+// {
+//   // read and process incoming characters.
+//   acquire(&uart_tx_lock);
+//   if(ReadReg(LSR) & LSR_TX_IDLE){
+//     // UART finished transmitting; wake up any sending thread
+//     tx_done = 1;
+//     wakeup(&tx_chan);
+//   }
+//   release(&uart_tx_lock);
+//   // read and process incoming characters.
+//   while(1){
+//     int c = uartgetc();
+//     if(c==-1)
+//       break;
+//   }
+// }
+
+
