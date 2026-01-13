@@ -5,17 +5,30 @@
 #include <pthread.h>
 #include <sys/time.h>
 
+/*
+Load Factor: 
+With only 5 buckets and 100,000 keys (#define NKEYS 100000), the load factor is extremely high (20,000), 
+which would cause very long chains and poor performance.
+
+*/
 #define NBUCKET 5
 #define NKEYS 100000
 
 struct entry {
   int key;
   int value;
-  struct entry *next;
+  struct entry *next; // Points to next entry in chain
 };
 struct entry *table[NBUCKET];
 int keys[NKEYS];
 int nthread = 1;
+
+pthread_mutex_t lock;
+void
+lock_init()
+{
+  pthread_mutex_init(&lock, NULL);
+}
 
 double
 now()
@@ -38,6 +51,7 @@ insert(int key, int value, struct entry **p, struct entry *n)
 static 
 void put(int key, int value)
 {
+  //Calculate bucket index using key % NBUCKET
   int i = key % NBUCKET;
 
   // is the key already present?
@@ -51,6 +65,7 @@ void put(int key, int value)
     e->value = value;
   } else {
     // the new is new.
+    // If not exists, add new entry to the front of the chain using the insert function
     insert(key, value, &table[i], table[i]);
   }
 }
@@ -60,8 +75,8 @@ get(int key)
 {
   int i = key % NBUCKET;
 
-
   struct entry *e = 0;
+  // Traverse the linked list in that bucket to find the matching key
   for (e = table[i]; e != 0; e = e->next) {
     if (e->key == key) break;
   }
@@ -76,7 +91,9 @@ put_thread(void *xa)
   int b = NKEYS/nthread;
 
   for (int i = 0; i < b; i++) {
+    pthread_mutex_lock(&lock);
     put(keys[b*n + i], n);
+    pthread_mutex_unlock(&lock);
   }
 
   return NULL;
@@ -102,6 +119,9 @@ main(int argc, char *argv[])
   pthread_t *tha;
   void *value;
   double t1, t0;
+  
+  lock_init();
+
 
   if (argc < 2) {
     fprintf(stderr, "Usage: %s nthreads\n", argv[0]);
