@@ -20,9 +20,9 @@ target remote 127.0.0.1:26000
 # add-symbol-file user/_init
 # b user/init.c:17
 
-add-symbol-file user/_sh
+# add-symbol-file user/_sh
 # b user/sh.c:147
-b getcmd
+# b getcmd
 # add-symbol-file kernel/kernel kernel 0x80000000 -s trampoline 0x3ffffff000
 # b uservec
 # b *0x3ffffff000
@@ -34,3 +34,9 @@ b getcmd
 # set a break point in devintr on external interrupt
 # b kernel/trap.c:186
 # b uartintr
+
+add-symbol-file user/_uthread 0x0
+b uthread.c:184
+b thread_create
+b thread_switch
+b thread_yield
