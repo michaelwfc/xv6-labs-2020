@@ -9,6 +9,8 @@
 #include "riscv.h"
 #include "defs.h"
 
+#define STEAL_PAGES 8
+
 void freerange(void *pa_start, void *pa_end);
 
 extern char end[]; // first address after kernel.
@@ -18,15 +20,27 @@ struct run {
   struct run *next;
 };
 
-struct {
+struct kmem {
   struct spinlock lock;
   struct run *freelist;
-} kmem;
+} ;
+
+
+struct kmem kmems[NCPU];
 
 void
 kinit()
 {
-  initlock(&kmem.lock, "kmem");
+  // initialize the allocator for one single freelist
+  // initlock(&kmem.lock, "kmem");
+  // freerange(end, (void*)PHYSTOP);
+
+  // when use multiple freelist, you need to initialize multiple freelist for each cpu
+  for(int i=0; i<NCPU; i++) {
+    initlock(&kmems[i].lock, "kmem");
+    kmems[i].freelist = 0;
+  }
+  // put physical memory into freelist of CPU 0 when initializing the allocator
   freerange(end, (void*)PHYSTOP);
 }
 
@@ -56,10 +70,16 @@ kfree(void *pa)
 
   r = (struct run*)pa;
 
-  acquire(&kmem.lock);
-  r->next = kmem.freelist;
-  kmem.freelist = r;
-  release(&kmem.lock);
+  // acquire(&kmem.lock);
+  // r->next = kmem.freelist;
+  // kmem.freelist = r;
+  // release(&kmem.lock);
+
+  int id= cpuid();
+  acquire(&kmems[id].lock);
+  r->next = kmems[id].freelist;
+  kmems[id].freelist = r;
+  release(&kmems[id].lock);
 }
 
 // Allocate one 4096-byte page of physical memory.
@@ -70,13 +90,40 @@ kalloc(void)
 {
   struct run *r;
 
-  acquire(&kmem.lock);
-  r = kmem.freelist;
-  if(r)
-    kmem.freelist = r->next;
-  release(&kmem.lock);
+  // acquire(&kmem.lock);
+  // r = kmem.freelist;
 
-  if(r)
+  // if(r)
+    // kmem.freelist = r->next;
+  // release(&kmem.lock);
+
+  // 1. try local cpu freelist
+  int id= cpuid();
+  acquire(&kmems[id].lock);
+  r = kmems[id].freelist;
+  if(r){
+    kmems[id].freelist = r->next;
+    release(&kmems[id].lock);
     memset((char*)r, 5, PGSIZE); // fill with junk
-  return (void*)r;
+    return r;
+  }
+  release(&kmems[id].lock);
+
+  
+  // 2.  steal from other cpus (NO local lock held)
+  for(int i=0; i<NCPU; i++){
+    if(i==id) continue;
+    // acquire the lock of the other cpu
+    acquire(&kmems[i].lock);
+    if(kmems[i].freelist){
+      r = kmems[i].freelist;
+      kmems[i].freelist = r->next;
+      release(&kmems[i].lock); // release the lock of the other cpu
+      memset((char *)r, 5, PGSIZE);
+      return r;
+    }
+    release(&kmems[i].lock);
+  }
+
+  return 0;
 }
