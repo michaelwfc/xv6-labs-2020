@@ -629,6 +629,7 @@ namex(char *path, int nameiparent, char *name)
 {
   struct inode *ip, *next;
 
+  // ip is either the root directory inode (/) or the current working directory inode
   if(*path == '/')
     ip = iget(ROOTDEV, ROOTINO);
   else

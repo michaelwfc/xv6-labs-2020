@@ -123,6 +123,8 @@ recover_from_log(void)
 }
 
 // called at the start of each FS system call.
+// log.outstanding counts the number of system calls that have reserved log space; 
+// the total reserved space is log.outstanding times MAXOPBLOCKS.
 void
 begin_op(void)
 {
@@ -181,6 +183,8 @@ write_log(void)
   int tail;
 
   for (tail = 0; tail < log.lh.n; tail++) {
+    // printf("[write_log] log block %d <- fs block %d\n", log.start + tail+1, log.lh.block[tail]);
+       
     struct buf *to = bread(log.dev, log.start+tail+1); // log block
     struct buf *from = bread(log.dev, log.lh.block[tail]); // cache block
     memmove(to->data, from->data, BSIZE);
@@ -194,6 +198,8 @@ static void
 commit()
 {
   if (log.lh.n > 0) {
+    // printf("[commit] committing %d blocks\n", log.lh.n);
+
     write_log();     // Write modified blocks from cache to log
     write_head();    // Write header to disk -- the real commit
     install_trans(0); // Now install writes to home locations
@@ -214,6 +220,8 @@ commit()
 void
 log_write(struct buf *b)
 {
+  // printf("[log_write] block %d\n", b->blockno);
+  
   int i;
 
   if (log.lh.n >= LOGSIZE || log.lh.n >= log.size - 1)

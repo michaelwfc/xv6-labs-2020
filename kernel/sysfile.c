@@ -294,7 +294,8 @@ sys_open(void)
 
   if((n = argstr(0, path, MAXPATH)) < 0 || argint(1, &omode) < 0)
     return -1;
-
+  // printf("start sys_open with path: %s and omode: %d\n", path, omode);
+  
   begin_op();
 
   if(omode & O_CREATE){
