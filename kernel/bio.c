@@ -231,22 +231,23 @@ bget(uint dev, uint blockno)
   release(&bcache.buckets[h].lock);
 
 
-  // 2. Miss: eviction (serialized)
-  // “Serialized eviction” means: Only one CPU at a time is allowed to choose and recycle a free buffer.
-  // Locking: One bcache.lock -> Per-bucket locks + eviction lock
-  // Imagine two CPUs both miss the cache:
-  // CPU 0 picks buffer A
-  // CPU 1 picks buffer A
-  // Both reassign it to different blocks,  Boom: invariant violated.
-  // So eviction must be protected by one lock.
+  /*2. Miss: eviction (serialized)
+  “Serialized eviction” means: Only one CPU at a time is allowed to choose and recycle a free buffer.
+  Locking: One bcache.lock -> Per-bucket locks + eviction lock
+  Imagine two CPUs both miss the cache:
+  CPU 0 picks buffer A
+  CPU 1 picks buffer A
+  Both reassign it to different blocks,  Boom: invariant violated.
+  So eviction must be protected by one lock.
   
   acquire(&bcache.eviction_lock);
-  // This bcache.eviction_lock: 
-  // - Is rarely contended
-  // - Covers a slow path
-  // - Is acceptable
-
+  This bcache.eviction_lock: 
+  - Is rarely contended
+  - Covers a slow path
+  - Is acceptable
+*/
   
+  acquire(&bcache.eviction_lock);
   // Retry lookup after acquiring eviction lock
   acquire(&bcache.buckets[h].lock);
   for(b= bcache.buckets[h].head; b; b=b->next){
@@ -263,10 +264,35 @@ bget(uint dev, uint blockno)
   // 3. Find victim
   struct buf *victim = 0;
   for(b= bcache.buf;b< bcache.buf+ NBUF; b++){
+    uint oldh =bhash(b->dev, b->blockno);
+    // You must hold the victim’s bucket lock while checking refcnt, and keep it held until the buffer is logically claimed.
+    // While holding the correct bucket lock, No other CPU can grab it now. Everything after this becomes safe.
+    // You are reading refcnt: without the bucket lock, while other CPUs may modify it
+    acquire(&bcache.buckets[oldh].lock);
     if(b->refcnt == 0){
-      victim = b;
+      b->refcnt = 1; // CLAIM IT while holding the lock
+      
+      // unlink victim
+      struct buf **pp = &bcache.buckets[oldh].head;
+      // *pp is the current node
+      while(*pp){
+        if(*pp == b){
+          // If it’s the victim:
+          // Replace the pointer that points to it
+          // Skip over the victim
+          // This single line does the unlink:
+          *pp = b->next;
+          break;
+        }
+        // Otherwise: Advance pp to point to the next pointer
+        pp = &(*pp)->next;
+      }
+
+      release(&bcache.buckets[oldh].lock);
+      victim = b; 
       break;
     }
+    release(&bcache.buckets[oldh].lock);
   }
   if(!victim){
     panic("[bget] No free buffer");
@@ -282,50 +308,32 @@ bget(uint dev, uint blockno)
   1. Remove the buffer from the old bucket
   2. Insert it into the new bucket
 
-  // pp walks the linked list
-  // Removes victim safely
-  */
-  if(victim->refcnt==0 && victim->valid){
-    // Because valid == 1, this buffer is currently linked into some bucket list corresponding to (old_dev, old_block).
-    // We are about to reuse this same struct buf for a different block.
-    uint oldh = bhash(victim->dev, victim->blockno);
+  Why acquire bcache.buckets[oldh].lock?
+    Because: 
+    Other CPUs may be traversing that bucket
+    Or inserting into that bucket
+    Or releasing buffers in that bucket
 
-    // Why acquire bcache.buckets[oldh].lock?
-    // Because: 
-    // Other CPUs may be traversing that bucket
-    // Or inserting into that bucket
-    // Or releasing buffers in that bucket
-    acquire(&bcache.buckets[oldh].lock);
+  Because valid == 1, this buffer is currently linked into some bucket list corresponding to (old_dev, old_block).
+  We are about to reuse this same struct buf for a different block.
 
-    /* Think of the bucket list as: head -> b1 -> b2 -> b3 -> NULL
+  unlink victim 
+    pp walks the linked list, Removes victim safely
+    Think of the bucket list as: head -> b1 -> b2 -> b3 -> NULL
      pp always points to the pointer that points to the current node.
     That means:
     - Initially: pp points to head
     - Later: pp points to b1->next, then b2->next, etc
     Using struct buf **pp allows us to delete a node without special-casing head.
-    */
-    struct buf **pp = &bcache.buckets[oldh].head;
-    // *pp is the current node
-    while(*pp){
-      if(*pp == victim){
-        // If it’s the victim:
-        // Replace the pointer that points to it
-        // Skip over the victim
-        // This single line does the unlink:
-        *pp = victim->next;
-        break;
-      }
-      // Otherwise: Advance pp to point to the next pointer
-      pp = &(*pp)->next;
-    }
-    release(&bcache.buckets[oldh].lock);
-  }
+  */
+
+
 
   // 5. initialize victim
   victim->dev = dev;
   victim->blockno = blockno;
   victim->valid = 0;
-  victim->refcnt = 1;
+  // victim->refcnt = 1; You already did in b->refcnt = 1;
 
   // 6. insert into new bucket
   acquire(&bcache.buckets[h].lock);
